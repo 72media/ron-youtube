@@ -511,7 +511,25 @@ function initStMap(){
   const topo = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {maxZoom:17, attribution:"© OpenTopoMap"});
   const radar = L.imageOverlay("https://semet.uk/loop/NSTLoop.gif",
     [[7.595929609239565, 98.66181095811945],[9.697971242406755, 100.6377990348955]],
-    {opacity:0.6, interactive:false}).addTo(stMap);
+    {opacity:0.55, interactive:false}).addTo(stMap);
+  // ตัดแถบโลโก้/ข้อความ กรมอุตุฯ ที่อยู่ด้านล่างของภาพเรดาร์ออก (ปรับ FOOT_CROP ได้ ถ้ายังเหลือขอบหรือตัดเกิน)
+  const FOOT_CROP = 0.075;
+  const clipRadar = () => { const el = radar.getElement(); if(el) el.style.clipPath = "inset(0 0 "+(FOOT_CROP*100)+"% 0)"; };
+  radar.on("add", clipRadar); clipRadar();
+  // แถบเลื่อนความโปร่งใสของเรดาร์
+  const OpCtl = L.Control.extend({
+    options:{position:"bottomleft"},
+    onAdd(){
+      const d = L.DomUtil.create("div","leaflet-bar");
+      d.style.cssText = "background:rgba(10,20,40,.85);color:#fff;padding:6px 10px;font:12px sans-serif;border-radius:8px";
+      d.innerHTML = '🌧️ เรดาร์ <input type="range" min="0" max="100" value="55" style="vertical-align:middle;width:90px"> <span>55%</span>';
+      const r = d.querySelector("input"), t = d.querySelector("span");
+      r.addEventListener("input", () => { radar.setOpacity(r.value/100); t.textContent = r.value+"%"; });
+      L.DomEvent.disableClickPropagation(d);
+      return d;
+    }
+  });
+  new OpCtl().addTo(stMap);
   stLayer = L.layerGroup().addTo(stMap);
   tmdLayer = L.layerGroup().addTo(stMap);
   L.circleMarker([CAM.lat, CAM.lon], {radius:7, color:"#fff", weight:2, fillColor:"#1e90ff", fillOpacity:1})
