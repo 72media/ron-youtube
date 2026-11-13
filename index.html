@@ -537,6 +537,12 @@ function initStMap(){
     .addTo(stMap);
   L.control.layers({"🛰️ ดาวเทียม":sat, "⛰️ ภูมิประเทศ":topo}, {"🌧️ เรดาร์ฝน":radar, "สถานีวัดฝน (มม./24 ชม.)":stLayer, "สถานีกรมอุตุฯ (ฝน 3 วัน)":tmdLayer}).addTo(stMap);
   setTimeout(() => stMap.invalidateSize(), 300);
+  // กรอบแผนที่สูงตามตารางข้างๆ ซึ่งเปลี่ยนขนาดหลังโหลดข้อมูล → ให้ Leaflet ปรับขนาดตามทุกครั้ง
+  try{
+    const el = document.getElementById("stmap");
+    if(window.ResizeObserver) new ResizeObserver(() => stMap.invalidateSize()).observe(el.parentElement || el);
+    window.addEventListener("resize", () => stMap.invalidateSize());
+  }catch(e){}
 }
 function drawStMap(list){
   if(!stMap || !stLayer) return;
