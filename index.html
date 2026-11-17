@@ -50,6 +50,9 @@ body{
 }
 .dot{width:8px;height:8px;border-radius:50%;background:#ef4444;box-shadow:0 0 10px #ef4444;animation:blink 1.3s infinite}
 @keyframes blink{50%{opacity:.25}}
+.owmbox{width:min(100%,1180px);margin:14px auto 0;display:flex;justify-content:center;border-radius:14px;overflow:hidden}
+.owmbox iframe{display:block;flex:1 1 auto;width:100%;max-width:1180px;height:315px;border:0;margin:0 auto}
+@media (max-width:900px){.owmbox{display:none}} /* มือถือ/จอแคบ: ซ่อนวิดเจ็ต TMD แล้วใช้ตารางพยากรณ์ 4 วันของหน้าเว็บแทน */
 .onlinebox{display:flex;justify-content:center;margin-top:10px;min-height:24px}
 .hero{position:relative}
 .devbtn{
@@ -211,7 +214,12 @@ footer{max-width:1700px;margin:12px auto;padding:10px 20px 26px;display:flex;jus
   <h1>กล้องสดตลาดร่อนพิบูลย์</h1><span class="live"><span class="dot"></span>LIVE</span>
   <p>ภาพสดจากตลาดร่อนพิบูลย์ จ.นครศรีธรรมราช พร้อมสภาพอากาศปัจจุบัน พยากรณ์ 4 วัน ปริมาณฝนสะสมจากสถานีวัดจริงรอบพื้นที่ แผนที่เรดาร์ฝน และภาพย้อนหลัง 24 ชั่วโมง</p>
   <div id="nowline" class="nowline"></div>
-  <div id="chips" class="chips"></div>
+  <div id="chips" class="chips" style="display:none"></div>
+  <!-- วิดเจ็ตพยากรณ์ 7 วัน กรมอุตุนิยมวิทยา -->
+  <div class="owmbox">
+    <iframe src="https://tmd.go.th/weatherForecast7DaysWidget?province=%E0%B8%99%E0%B8%84%E0%B8%A3%E0%B8%A8%E0%B8%A3%E0%B8%B5%E0%B8%98%E0%B8%A3%E0%B8%A3%E0%B8%A1%E0%B8%A3%E0%B8%B2%E0%B8%8A"
+      title="พยากรณ์อากาศ 7 วัน นครศรีธรรมราช (กรมอุตุนิยมวิทยา)" height="315" width="1180" scrolling="no" frameborder="0" loading="lazy"></iframe>
+  </div>
   <div class="onlinebox" title="จำนวนผู้เข้าชมที่ออนไลน์อยู่ตอนนี้">
     <!-- BEGIN: Powered by Supercounters.com -->
     <script type="text/javascript" src="//widget.supercounters.com/ssl/online_i.js"></script><script type="text/javascript">sc_online_i(1741288,"0e1420","38bdf8");</script>
