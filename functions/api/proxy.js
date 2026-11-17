@@ -15,10 +15,10 @@ export async function onRequestGet({ request }) {
   }
   const upstream = await fetch(u.toString(), {
     headers: { "User-Agent": "Mozilla/5.0 (ron-youtube proxy)", "Accept": "application/json,*/*" },
-    cf: { cacheTtl: 60, cacheEverything: true },
+    cf: { cacheEverything: true, cacheTtlByStatus: { "200-299": 120, "300-599": 0 } },
   });
   const headers = new Headers(upstream.headers);
   headers.set("Access-Control-Allow-Origin", "*");
-  headers.set("Cache-Control", "public, max-age=60");
+  headers.set("Cache-Control", upstream.ok ? "public, max-age=120" : "no-store");
   return new Response(upstream.body, { status: upstream.status, headers });
 }
