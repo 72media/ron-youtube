@@ -487,6 +487,8 @@ function drawRain(){
   } else {
     boxes += rainBox("ฝนสะสม 3 วันที่ผ่านมา (แบบจำลอง)", rainModel.three, "ยังไม่มีข้อมูลสถานีกรมอุตุฯ จึงใช้ค่าจากแบบจำลอง", false, 200);
   }
+  snapRain = {past, real, name: real ? near.reduce((a,b) => b.mm24 > a.mm24 ? b : a).name : ""};
+  renderSnapWx();
   document.getElementById("rainnote").textContent = note;
   document.getElementById("rainbox").innerHTML = boxes;
 
@@ -705,7 +707,7 @@ async function loadStations(){
 }
 
 /* ---------- ข้อมูลอากาศซ้อนบนภาพล่าสุด ---------- */
-let wxOv = null;
+let wxOv = null, snapRain = null;
 function renderSnapWx(){
   if(!wxOv) return;
   const {c, d, aqi} = wxOv;
@@ -716,8 +718,9 @@ function renderSnapWx(){
     "พระอาทิตย์ขึ้น "+(i>=0?hm(d.sunrise[i]):"--:--")+"\nพระอาทิตย์ตก "+(i>=0?hm(d.sunset[i]):"--:--")+"\nร่อนพิบูลย์ นครศรีธรรมราช";
   document.getElementById("snapwxR").textContent =
     "อุณหภูมิ "+Math.round(c.temperature_2m)+"°C  ความชื้น "+Math.round(c.relative_humidity_2m)+"%\n"+
-    "ลม "+r1(c.wind_speed_10m)+" ม./วิ "+compass(c.wind_direction_10m)+"  ฝน "+r1(c.rain)+" มม.\n"+
-    "AQI-US "+(aqi==null?"—":Math.round(aqi))+"  "+wx(c.weather_code)[1];
+    (snapRain ? "ฝนสะสม 24 ชม. "+r1(snapRain.past)+" มม. "+(snapRain.real?"(สถานีวัดจริง)":"(แบบจำลอง)")+"\n" : "")+
+    "ลม "+r1(c.wind_speed_10m)+" ม./วิ "+compass(c.wind_direction_10m)+"  ฝนขณะนี้ "+r1(c.rain)+" มม.\n"+
+    "AQI-US "+(aqi==null?"—":Math.round(aqi))+" · "+wx(c.weather_code)[1];
 }
 
 /* ---------- load weather ---------- */
