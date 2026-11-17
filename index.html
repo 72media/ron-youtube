@@ -464,7 +464,7 @@ function renderRain(data){
 function drawRain(){
   if(!rainModel) return;
   const next = rainModel.next;
-  let past = rainModel.past, real = false;
+  let past = rainModel.past, real = false, hrs = 24, near6 = null;
   let pastLabel = "ฝนสะสม 24 ชม. ที่ผ่านมา (แบบจำลอง)", pastSub = "ยังไม่มีข้อมูลสถานีวัดจริง จึงใช้ค่าจากแบบจำลอง";
   let note = "ระดับฝนตามเกณฑ์ปริมาณฝน 24 ชม. ของกรมอุตุนิยมวิทยา · ข้อมูลจากแบบจำลอง อาจต่างจากค่าจริง";
 
@@ -475,6 +475,16 @@ function drawRain(){
     pastLabel = "ฝนสะสม 24 ชม. สูงสุดจากสถานีวัดจริง (รัศมี 15 กม.)";
     pastSub = best.name + " · ห่าง " + r1(best.dist) + " กม. · พบ " + near.length + " สถานี";
     note = "ระดับฝนตามเกณฑ์ปริมาณฝน 24 ชม. ของกรมอุตุนิยมวิทยา · ฝนที่ผ่านมาจากสถานีวัดจริง (" + rainSrc + ") ส่วนคาดการณ์และฝน 3 วันเป็นแบบจำลอง";
+  } else {
+    // ไม่มีค่า 24 ชม. จากสถานีใกล้ๆ → ใช้ฝนสะสม 6 ชม. ล่าสุดจากสถานีวัดจริงแทน (ดีกว่าค่าแบบจำลอง)
+    const n6 = (rainStations||[]).filter(s => s.dist<=15 && s.sum6!=null);
+    if(n6.length){
+      const b6 = n6.reduce((a,b) => b.sum6 > a.sum6 ? b : a);
+      past = b6.sum6; real = true; hrs = 6;
+      pastLabel = "ฝนสะสม 6 ชม. ล่าสุด สูงสุดจากสถานีวัดจริง (รัศมี 15 กม.)";
+      pastSub = b6.name + " · ห่าง " + r1(b6.dist) + " กม. · พบ " + n6.length + " สถานี · สถานีใกล้ๆ ยังไม่รายงานค่า 24 ชม.";
+      note = "ฝนที่ผ่านมาจากสถานีวัดจริง (" + rainSrc + ") รวม 6 ชั่วโมงล่าสุด เพราะสถานีใกล้ร่อนพิบูลย์ยังไม่มีค่าสะสม 24 ชม. · ส่วนคาดการณ์และฝน 3 วันเป็นแบบจำลอง";
+    }
   }
   let boxes = rainBox(pastLabel, past, pastSub) +
     rainBox("คาดการณ์ฝน 24 ชม. ข้างหน้า (แบบจำลอง)", next, "ค่าคาดการณ์ ไม่ใช่ค่าวัด");
@@ -487,7 +497,7 @@ function drawRain(){
   } else {
     boxes += rainBox("ฝนสะสม 3 วันที่ผ่านมา (แบบจำลอง)", rainModel.three, "ยังไม่มีข้อมูลสถานีกรมอุตุฯ จึงใช้ค่าจากแบบจำลอง", false, 200);
   }
-  snapRain = {past, real, name: real ? near.reduce((a,b) => b.mm24 > a.mm24 ? b : a).name : ""};
+  snapRain = {past, real, hrs, name: ""};
   renderSnapWx();
   document.getElementById("rainnote").textContent = note;
   document.getElementById("rainbox").innerHTML = boxes;
@@ -514,21 +524,45 @@ async function proxied(url){
   return r.json();
 }
 async function fetchClpp(){
-  const th = new Date(Date.now() + 7*3600*1000 - 30*60*1000);
-  th.setUTCMinutes(Math.floor(th.getUTCMinutes()/5)*5);
-  const date = th.getUTCFullYear()+"-"+pad(th.getUTCMonth()+1)+"-"+pad(th.getUTCDate());
-  const time = pad(th.getUTCHours())+":"+pad(th.getUTCMinutes());
-  const json = await proxied("https://clpp-radar.onwr.go.th/api/rain_stations?radar_date="+date+"&radar_time="+encodeURIComponent(time));
-  const f = json.fields || [];
-  return (json.stations || []).map(r => { const o={}; f.forEach((k,i)=>o[k]=r[i]); return o; }).map(s => ({
-    id:"c"+s.id, name:s.name||"ไม่ทราบชื่อ", agency:s.agency||"",
-    lat:parseFloat(s.lat), lon:parseFloat(s.lon), loc:String(s.prov||""),
-    mm: s.mm==null ? null : Number(s.mm), mm24: s.mm24==null ? null : Number(s.mm24),
-    time, src:"clpp"
-  }));
+  // ข้อมูลรอบล่าสุดอาจยังไม่พร้อม/ว่าง → ลองถอยหลังทีละรอบจนได้สถานีที่มีค่าฝน 24 ชม.
+  let lastErr = null, lastRows = [];
+  for(const back of [30, 45, 60, 90, 120]){
+    const th = new Date(Date.now() + 7*3600*1000 - back*60*1000);
+    th.setUTCMinutes(Math.floor(th.getUTCMinutes()/5)*5);
+    const date = th.getUTCFullYear()+"-"+pad(th.getUTCMonth()+1)+"-"+pad(th.getUTCDate());
+    const time = pad(th.getUTCHours())+":"+pad(th.getUTCMinutes());
+    try{
+      const json = await proxied("https://clpp-radar.onwr.go.th/api/rain_stations?radar_date="+date+"&radar_time="+encodeURIComponent(time));
+      const f = json.fields || [];
+      const obsMax = json.observed_max ? new Date(json.observed_max).getTime() : null;
+      const fresh = t => !obsMax || !t || (obsMax - new Date(t).getTime()) <= 3*3600*1000;   // ตัดค่าที่ค้างเก่า (>3 ชม. จากรอบล่าสุด)
+      const rows = (json.stations || []).map(r => { const o={}; f.forEach((k,i)=>o[k]=r[i]); return o; }).map(s => {
+        const h = Array.isArray(s.hist) ? s.hist.filter(v => v!=null && isFinite(v)) : [];
+        return {
+          id:"c"+s.id, name:s.name||"ไม่ทราบชื่อ", agency:s.agency||"",
+          lat:parseFloat(s.lat), lon:parseFloat(s.lon), loc:String(s.prov||""),
+          mm: (s.mm==null || !fresh(s.obs)) ? null : Number(s.mm),
+          mm24: (s.mm24==null || !fresh(s.obs24)) ? null : Number(s.mm24),
+          sum6: (h.length>=3 && fresh(s.obs)) ? h.reduce((a,b)=>a+Number(b),0) : null,   // ฝนสะสมจากข้อมูลรายชั่วโมง 6 ชม. ล่าสุด
+          time, src:"clpp"
+        };
+      });
+      lastRows = rows;
+      if(rows.some(r => (r.mm24 != null && isFinite(r.mm24)) || r.sum6 != null)) return rows;
+    }catch(e){ lastErr = e; }
+  }
+  if(lastRows.length) return lastRows;
+  throw lastErr || new Error("clpp-radar ไม่มีข้อมูล");
 }
 const tx = v => (v && typeof v === "object") ? (v.th ?? v.TH ?? v.en ?? "") : (v ?? "");
+let twCache = {t:0, rows:null};
 async function fetchThaiWater(){
+  // เรียกไม่ถี่เกิน 15 นาที (เคยโดน HTTP 429) ถ้าโดนจำกัดให้ใช้ค่าล่าสุดที่เก็บไว้
+  if(twCache.rows && Date.now() - twCache.t < 15*60*1000) return twCache.rows;
+  try{ const rows = await fetchThaiWaterRaw(); twCache = {t:Date.now(), rows}; return rows; }
+  catch(e){ if(twCache.rows) return twCache.rows; throw e; }
+}
+async function fetchThaiWaterRaw(){
   // ThaiWater (สสน.) public API: 24-hour accumulated rainfall for all telemetry stations
   const json = await proxied("https://api-v3.thaiwater.net/api/v1/thaiwater30/public/rain_24h");
   const arr = Array.isArray(json) ? json : (json.data || json.result || []);
@@ -560,10 +594,10 @@ function renderStationTable(list){
     const bg = colorAt(v, SC.rain);
     return '<td style="background:'+bg+';color:'+textFor(bg)+';font-weight:700">'+r1(v)+'</td>';
   };
-  box.innerHTML = '<div class="tbl-wrap"><table class="stbl"><thead><tr><th>สถานีใกล้ร่อนพิบูลย์</th><th style="width:62px">ห่าง<br>(กม.)</th><th style="width:70px">ฝน 1 ชม.<br>(มม.)</th><th style="width:70px">ฝน 24 ชม.<br>(มม.)</th><th style="width:56px">เวลา</th></tr></thead><tbody>' +
+  box.innerHTML = '<div class="tbl-wrap"><table class="stbl"><thead><tr><th>สถานีใกล้ร่อนพิบูลย์</th><th style="width:62px">ห่าง<br>(กม.)</th><th style="width:70px">ฝน 1 ชม.<br>(มม.)</th><th style="width:66px">ฝน 6 ชม.<br>(มม.)</th><th style="width:70px">ฝน 24 ชม.<br>(มม.)</th><th style="width:56px">เวลา</th></tr></thead><tbody>' +
     list.slice(0,8).map(s =>
       '<tr><td class="nm">'+s.name+'<div class="sub">'+(s.agency||"")+' · '+(String(s.loc||"").split("·")[0]||"").trim()+'</div></td>'+
-      '<td>'+r1(s.dist)+'</td>'+cell(s.mm)+cell(s.mm24)+'<td>'+hhmm(s.time)+'</td></tr>'
+      '<td>'+r1(s.dist)+'</td>'+cell(s.mm)+cell(s.sum6)+cell(s.mm24)+'<td>'+hhmm(s.time)+'</td></tr>'
     ).join("") + '</tbody></table></div>';
 }
 
@@ -613,10 +647,11 @@ function drawStMap(list){
   stLayer.clearLayers();
   list.forEach(s => {
     const m1 = s.mm, m24 = s.mm24;
-    const col = colorAt(m24 ?? m1 ?? 0, SC.rain);
+    const shown = m24 ?? s.sum6 ?? null;
+    const col = colorAt(shown ?? m1 ?? 0, SC.rain);
     L.circleMarker([s.lat, s.lon], {radius:9, color:"#000", weight:1.5, fillColor:col, fillOpacity:0.9})
-      .bindTooltip(m24==null ? "—" : String(r1(m24)), {permanent:true, direction:"center", className:"stt"})
-      .bindPopup('<b>'+s.name+'</b><br>'+(s.agency||"")+' · ห่างกล้อง '+r1(s.dist)+' กม.<br>ฝน 1 ชม.: '+(m1==null?"—":r1(m1))+' มม.<br>ฝน 24 ชม.: '+(m24==null?"—":r1(m24))+' มม.')
+      .bindTooltip(shown==null ? "—" : String(r1(shown)), {permanent:true, direction:"center", className:"stt"})
+      .bindPopup('<b>'+s.name+'</b><br>'+(s.agency||"")+' · ห่างกล้อง '+r1(s.dist)+' กม.<br>ฝน 1 ชม.: '+(m1==null?"—":r1(m1))+' มม.<br>ฝน 6 ชม.: '+(s.sum6==null?"—":r1(s.sum6))+' มม.<br>ฝน 24 ชม.: '+(m24==null?"—":r1(m24))+' มม.')
       .addTo(stLayer);
   });
 }
@@ -684,7 +719,7 @@ async function loadStations(){
   const ok = []; let all = [];
   res.forEach((r,i) => {
     if(r.status === "fulfilled"){ ok.push(names[i]); all = all.concat(r.value); }
-    else console.warn("Rain source failed:", names[i], r.reason);
+    else console.info("Rain source unavailable:", names[i], String(r.reason));
   });
 
   if(!ok.length){
@@ -718,7 +753,7 @@ function renderSnapWx(){
     "พระอาทิตย์ขึ้น "+(i>=0?hm(d.sunrise[i]):"--:--")+"\nพระอาทิตย์ตก "+(i>=0?hm(d.sunset[i]):"--:--")+"\nร่อนพิบูลย์ นครศรีธรรมราช";
   document.getElementById("snapwxR").textContent =
     "อุณหภูมิ "+Math.round(c.temperature_2m)+"°C  ความชื้น "+Math.round(c.relative_humidity_2m)+"%\n"+
-    (snapRain ? "ฝนสะสม 24 ชม. "+r1(snapRain.past)+" มม. "+(snapRain.real?"(สถานีวัดจริง)":"(แบบจำลอง)")+"\n" : "")+
+    (snapRain ? "ฝนสะสม "+snapRain.hrs+" ชม. "+r1(snapRain.past)+" มม. "+(snapRain.real?"(สถานีวัดจริง)":"(แบบจำลอง)")+"\n" : "")+
     "ลม "+r1(c.wind_speed_10m)+" ม./วิ "+compass(c.wind_direction_10m)+"  ฝนขณะนี้ "+r1(c.rain)+" มม.\n"+
     "AQI-US "+(aqi==null?"—":Math.round(aqi))+" · "+wx(c.weather_code)[1];
 }
