@@ -51,6 +51,8 @@ body{
 .dot{width:8px;height:8px;border-radius:50%;background:#ef4444;box-shadow:0 0 10px #ef4444;animation:blink 1.3s infinite}
 @keyframes blink{50%{opacity:.25}}
 .owmbox{width:min(100%,1180px);margin:14px auto 0;display:flex;justify-content:center;border-radius:14px;overflow:hidden}
+.owmbox{position:relative}
+.tmdbot{position:absolute;right:6px;bottom:6px;width:72px;height:72px;border-radius:50%;z-index:2;cursor:pointer;display:block}
 .owmbox iframe{display:block;flex:1 1 auto;width:100%;max-width:1180px;height:315px;border:0;margin:0 auto}
 @media (max-width:900px){.owmbox{display:none}} /* มือถือ/จอแคบ: ซ่อนวิดเจ็ต TMD แล้วใช้ตารางพยากรณ์ 4 วันของหน้าเว็บแทน */
 .onlinebox{display:flex;justify-content:center;margin-top:10px;min-height:24px}
@@ -223,6 +225,8 @@ footer{max-width:1700px;margin:12px auto;padding:10px 20px 26px;display:flex;jus
   <div class="owmbox">
     <iframe src="https://tmd.go.th/weatherForecast7DaysWidget?province=%E0%B8%99%E0%B8%84%E0%B8%A3%E0%B8%A8%E0%B8%A3%E0%B8%B5%E0%B8%98%E0%B8%A3%E0%B8%A3%E0%B8%A1%E0%B8%A3%E0%B8%B2%E0%B8%8A"
       title="พยากรณ์อากาศ 7 วัน นครศรีธรรมราช (กรมอุตุนิยมวิทยา)" height="315" width="1180" scrolling="no" frameborder="0" loading="lazy"></iframe>
+    <!-- ปุ่มโปร่งใสทับรูปน้อง TMD: กดแล้วเปิดแชตบอทกรมอุตุฯ ในแท็บใหม่ (แทนกล่องแชตเล็กๆ ใน iframe) -->
+    <a class="tmdbot" href="https://122.8.149.221/chatbot/ZmJkVbqzJi2h15eO" target="_blank" rel="noopener noreferrer" title="คุยกับ TMD Chatbot (เปิดในหน้าใหม่)" aria-label="เปิดแชตบอทกรมอุตุนิยมวิทยาในหน้าใหม่"></a>
   </div>
   <div class="onlinebox" title="จำนวนผู้เข้าชมที่ออนไลน์อยู่ตอนนี้">
     <!-- BEGIN: Powered by Supercounters.com -->
