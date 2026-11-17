@@ -106,6 +106,10 @@ main{max-width:1700px;margin:auto;padding:8px 20px 0}
 }
 .player iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
 .player img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
+#snapwx{display:none;position:absolute;left:0;right:0;bottom:26px;padding:0 8px;justify-content:space-between;align-items:flex-end;gap:8px;pointer-events:none;
+  font:600 clamp(9px,1.35vw,13px)/1.35 ui-monospace,Menlo,Consolas,monospace;color:#fff;text-shadow:0 0 3px #000,0 1px 2px #000,1px 0 2px #000}
+#snapwx .r{text-align:right}
+#snapwx .t{background:rgba(0,0,0,.35);padding:3px 7px;border-radius:5px;white-space:pre}
 #snapnote{position:absolute;left:0;right:0;bottom:0;padding:5px 10px;font-size:11px;color:#fff;background:rgba(0,0,0,.6);text-align:center;display:none}
 .yt-row{display:flex;justify-content:center;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0 0;font-size:12px;color:var(--muted)}
 .yt-row a{background:#ff0033;color:#fff;text-decoration:none;padding:6px 14px;border-radius:999px;font-weight:700;box-shadow:0 4px 14px rgba(255,0,51,.35)}
@@ -253,6 +257,7 @@ footer{max-width:1700px;margin:12px auto;padding:10px 20px 26px;display:flex;jus
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
           <img id="snap" alt="ภาพล่าสุดจากกล้องตลาดร่อนพิบูลย์" style="display:none">
+          <div id="snapwx"><div class="t" id="snapwxL"></div><div class="t r" id="snapwxR"></div></div>
           <div id="snapnote"></div>
         </div>
         <div class="yt-row">
@@ -699,13 +704,29 @@ async function loadStations(){
   renderStationTable(merged); drawStMap(merged); drawRain();
 }
 
+/* ---------- ข้อมูลอากาศซ้อนบนภาพล่าสุด ---------- */
+let wxOv = null;
+function renderSnapWx(){
+  if(!wxOv) return;
+  const {c, d, aqi} = wxOv;
+  const today = new Intl.DateTimeFormat("en-CA",{timeZone:TZ}).format(new Date());
+  const i = d.time.indexOf(today);
+  const hm = v => v ? String(v).slice(11,16) : "--:--";
+  document.getElementById("snapwxL").textContent =
+    "พระอาทิตย์ขึ้น "+(i>=0?hm(d.sunrise[i]):"--:--")+"\nพระอาทิตย์ตก "+(i>=0?hm(d.sunset[i]):"--:--")+"\nร่อนพิบูลย์ นครศรีธรรมราช";
+  document.getElementById("snapwxR").textContent =
+    "อุณหภูมิ "+Math.round(c.temperature_2m)+"°C  ความชื้น "+Math.round(c.relative_humidity_2m)+"%\n"+
+    "ลม "+r1(c.wind_speed_10m)+" ม./วิ "+compass(c.wind_direction_10m)+"  ฝน "+r1(c.rain)+" มม.\n"+
+    "AQI-US "+(aqi==null?"—":Math.round(aqi))+"  "+wx(c.weather_code)[1];
+}
+
 /* ---------- load weather ---------- */
 async function load(){
   try{
     const url = "https://api.open-meteo.com/v1/forecast?latitude="+LAT+"&longitude="+LON+
       "&current=temperature_2m,relative_humidity_2m,apparent_temperature,rain,weather_code,wind_speed_10m,wind_direction_10m,uv_index"+
       "&hourly=precipitation"+
-      "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,relative_humidity_2m_mean,wind_speed_10m_mean,wind_direction_10m_dominant"+
+      "&daily=sunrise,sunset,weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,relative_humidity_2m_mean,wind_speed_10m_mean,wind_direction_10m_dominant"+
       "&timezone=Asia%2FBangkok&past_days=4&forecast_days=4&wind_speed_unit=ms";
     const data = await (await fetch(url,{cache:"no-store"})).json();
     const c = data.current, d = data.daily;
@@ -728,6 +749,7 @@ async function load(){
     document.getElementById("upd").textContent = "ข้อมูลอากาศ ณ " +
       new Date(c.time+":00+07:00").toLocaleString("th-TH",{timeZone:TZ,day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit",hour12:false}) + " น.";
 
+    wxOv = {c, d, aqi}; renderSnapWx();
     chipState.temp = c.temperature_2m; chipState.desc = wx(c.weather_code)[1];
     chipState.wind = c.wind_speed_10m; chipState.aqi = aqi;
     renderChips();
@@ -770,6 +792,8 @@ function showTab(t){
   document.querySelector(".player iframe").style.display = live ? "block" : "none";
   document.getElementById("snap").style.display = live ? "none" : "block";
   document.getElementById("snapnote").style.display = "none";
+  document.getElementById("snapwx").style.display = live ? "none" : "flex";
+  if(!live) renderSnapWx();
   document.getElementById("tabLive").classList.toggle("on", live);
   document.getElementById("tabSnap").classList.toggle("on", !live);
   clearInterval(snapTimer);
